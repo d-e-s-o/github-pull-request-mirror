@@ -42,6 +42,7 @@ from ssl import (
   wrap_socket,
 )
 from subprocess import (
+  CalledProcessError,
   check_call,
 )
 from sys import (
@@ -187,6 +188,9 @@ class GithubPullRequestHandler(BaseHTTPRequestHandler):
       body = self.rfile.read()
       self._verify_signature(body)
       self._handleRequest(body)
+    except CalledProcessError as e:
+      self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, "a process failed unexpectedly")
+      raise
     except HttpError as e:
       self.send_error(e.status, str(e))
     except Exception as e:
