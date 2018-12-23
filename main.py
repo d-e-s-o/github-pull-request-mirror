@@ -146,9 +146,6 @@ class GithubPullRequestHandler(BaseHTTPRequestHandler):
     if "pull_request" not in content:
       raise RuntimeError("received unsupported event type")
 
-    if content["action"] == "closed":
-      return
-
     src_repo = content["pull_request"]["head"]["repo"]["clone_url"]
     src_branch = content["pull_request"]["head"]["ref"]
 
@@ -165,9 +162,12 @@ class GithubPullRequestHandler(BaseHTTPRequestHandler):
 
     with TemporaryDirectory() as dir_,\
          GitRepo(self.git, dir_) as repo:
-      repo.fetch("--quiet", "--force", "--no-recurse-submodules",
-                 src_repo, ":".join((src_branch, dst_branch)))
-      repo.push("--quiet", "--force", dst_repo, "+%s" % dst_branch)
+      if content["action"] != "closed":
+        repo.fetch("--quiet", "--force", "--no-recurse-submodules",
+                   src_repo, ":".join((src_branch, dst_branch)))
+        repo.push("--quiet", "--force", dst_repo, "+%s" % dst_branch)
+      else:
+        repo.push("--quiet", "--force", dst_repo, ":%s" % dst_branch)
 
   def do_POST(self):
     """Handle an HTTP POST request."""
