@@ -1,7 +1,7 @@
 # main.py
 
 #/***************************************************************************
-# *   Copyright (C) 2018 Daniel Mueller (deso@posteo.net)                   *
+# *   Copyright (C) 2018-2019 Daniel Mueller (deso@posteo.net)              *
 # *                                                                         *
 # *   This program is free software: you can redistribute it and/or modify  *
 # *   it under the terms of the GNU General Public License as published by  *
@@ -136,6 +136,23 @@ class GithubPullRequestHandler(BaseHTTPRequestHandler):
     if not compareHmac(sig, expct):
       raise HttpError(HTTPStatus.UNAUTHORIZED, "HMAC verification failed")
 
+  def _handlePullRequest(self, action, src_repo, src_branch, dst_repo, dst_branch):
+    """Handle a pull request."""
+    # "Inject" our authentication information into the URL, as that's how git
+    # can understand it.
+    split = list(splitUrl(dst_repo))
+    split[1] = "%s:%s@%s" % (self.user, self.token, split[1])
+    dst_repo = unsplitUrl(split)
+
+    with TemporaryDirectory() as dir_,\
+         GitRepo(self.git, dir_) as repo:
+      if action != "closed":
+        repo.fetch("--quiet", "--force", "--no-recurse-submodules",
+                   src_repo, ":".join((src_branch, dst_branch)))
+        repo.push("--quiet", "--force", dst_repo, "+%s" % dst_branch)
+      else:
+        repo.push("--quiet", "--force", dst_repo, ":%s" % dst_branch)
+
   def _handleRequest(self, body):
     """Handle a Github HTTP request."""
     type_ = self.headers.get("content-type")
@@ -154,20 +171,7 @@ class GithubPullRequestHandler(BaseHTTPRequestHandler):
     # use. This prevents malicious overwrites.
     dst_branch = "pull-request/%s" % src_branch
 
-    # "Inject" our authentication information into the URL, as that's how git
-    # can understand it.
-    split = list(splitUrl(dst_repo))
-    split[1] = "%s:%s@%s" % (self.user, self.token, split[1])
-    dst_repo = unsplitUrl(split)
-
-    with TemporaryDirectory() as dir_,\
-         GitRepo(self.git, dir_) as repo:
-      if content["action"] != "closed":
-        repo.fetch("--quiet", "--force", "--no-recurse-submodules",
-                   src_repo, ":".join((src_branch, dst_branch)))
-        repo.push("--quiet", "--force", dst_repo, "+%s" % dst_branch)
-      else:
-        repo.push("--quiet", "--force", dst_repo, ":%s" % dst_branch)
+    self._handlePullRequest(content["action"], src_repo, src_branch, dst_repo, dst_branch)
 
   def do_POST(self):
     """Handle an HTTP POST request."""
