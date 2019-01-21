@@ -171,7 +171,11 @@ class GithubPullRequestHandler(BaseHTTPRequestHandler):
     # use. This prevents malicious overwrites.
     dst_branch = "pull-request/%s" % src_branch
 
-    self._handlePullRequest(content["action"], src_repo, src_branch, dst_repo, dst_branch)
+    # The owner of the repository may have created a pull request for
+    # the very same repository. There is no need to mirror those as the
+    # CI will be triggered without mirroring the request.
+    if src_repo != dst_repo:
+      self._handlePullRequest(content["action"], src_repo, src_branch, dst_repo, dst_branch)
 
   def do_POST(self):
     """Handle an HTTP POST request."""
