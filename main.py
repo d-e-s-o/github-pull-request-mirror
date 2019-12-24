@@ -38,6 +38,10 @@ from json import (
 from re import (
   sub,
 )
+from signal import (
+  signal,
+  SIGUSR1,
+)
 from ssl import (
   wrap_socket,
 )
@@ -58,6 +62,12 @@ from urllib.parse import (
 
 
 __version__ = "0.1"
+
+
+def handlePdb(sig, frame):
+  """A signal handler that traps into pdb."""
+  import pdb
+  pdb.Pdb().set_trace(frame)
 
 
 class HttpError(RuntimeError):
@@ -259,6 +269,8 @@ def main(args):
   httpd = HTTPServer(("", ns.port), handler)
   httpd.socket = wrap_socket(httpd.socket, certfile=ns.cert,
                              keyfile=ns.key, server_side=True)
+
+  signal(SIGUSR1, handlePdb)
 
   with suppress(KeyboardInterrupt):
     httpd.serve_forever()
